@@ -1,0 +1,306 @@
+{
+  "input": "https://www.Northwind.example/about",
+  "domain": "northwind.example",
+  "final_url": "https://northwind.example/",
+  "error": null,
+  "company_name": {
+    "value": "Northwind Labs",
+    "source": "json-ld",
+    "confidence": "high",
+    "inferred": false,
+    "page": "https://northwind.example/"
+  },
+  "website_title": {
+    "value": "Northwind Labs | Home",
+    "source": "title",
+    "confidence": "high",
+    "inferred": false,
+    "page": "https://northwind.example/"
+  },
+  "meta_description": {
+    "value": "Northwind Labs builds product analytics for B2B teams.",
+    "source": "meta",
+    "confidence": "high",
+    "inferred": false,
+    "page": "https://northwind.example/"
+  },
+  "emails": [
+    {
+      "value": "hello@northwind.example",
+      "source": "json-ld",
+      "confidence": "high",
+      "inferred": false,
+      "page": "https://northwind.example/"
+    },
+    {
+      "value": "press@northwind.example",
+      "source": "mailto",
+      "confidence": "high",
+      "inferred": false,
+      "page": "https://northwind.example/"
+    },
+    {
+      "value": "sales@northwind.example",
+      "source": "mailto",
+      "confidence": "high",
+      "inferred": false,
+      "page": "https://northwind.example/contact"
+    },
+    {
+      "value": "careers@northwind.example",
+      "source": "text",
+      "confidence": "medium",
+      "inferred": false,
+      "page": "https://northwind.example/about"
+    }
+  ],
+  "phones": [
+    {
+      "value": "+1-415-555-0148",
+      "source": "json-ld",
+      "confidence": "high",
+      "inferred": false,
+      "page": "https://northwind.example/"
+    },
+    {
+      "value": "+1-415-555-0142",
+      "source": "tel",
+      "confidence": "high",
+      "inferred": false,
+      "page": "https://northwind.example/"
+    },
+    {
+      "value": "(415) 555-0199",
+      "source": "text",
+      "confidence": "medium",
+      "inferred": false,
+      "page": "https://northwind.example/contact"
+    }
+  ],
+  "social_links": {
+    "linkedin": [
+      {
+        "value": "https://www.linkedin.com/company/northwind-labs",
+        "source": "json-ld",
+        "confidence": "high",
+        "inferred": false,
+        "page": "https://northwind.example/"
+      }
+    ],
+    "twitter": [
+      {
+        "value": "https://twitter.com/northwindlabs",
+        "source": "json-ld",
+        "confidence": "high",
+        "inferred": false,
+        "page": "https://northwind.example/"
+      }
+    ],
+    "facebook": [
+      {
+        "value": "https://www.facebook.com/northwindlabs",
+        "source": "html-link",
+        "confidence": "medium",
+        "inferred": false,
+        "page": "https://northwind.example/"
+      }
+    ],
+    "instagram": [
+      {
+        "value": "https://www.instagram.com/northwindlabs/",
+        "source": "html-link",
+        "confidence": "medium",
+        "inferred": false,
+        "page": "https://northwind.example/"
+      }
+    ],
+    "youtube": [
+      {
+        "value": "https://www.youtube.com/northwindlabs",
+        "source": "html-link",
+        "confidence": "medium",
+        "inferred": false,
+        "page": "https://northwind.example/"
+      }
+    ],
+    "tiktok": [
+      {
+        "value": "https://www.tiktok.com/@northwindlabs",
+        "source": "html-link",
+        "confidence": "medium",
+        "inferred": false,
+        "page": "https://northwind.example/"
+      }
+    ],
+    "github": [
+      {
+        "value": "https://github.com/northwind-labs",
+        "source": "json-ld",
+        "confidence": "high",
+        "inferred": false,
+        "page": "https://northwind.example/"
+      }
+    ],
+    "discord": [
+      {
+        "value": "https://discord.gg/northwind",
+        "source": "html-link",
+        "confidence": "medium",
+        "inferred": false,
+        "page": "https://northwind.example/"
+      }
+    ],
+    "pinterest": [],
+    "crunchbase": []
+  },
+  "address": {
+    "value": {
+      "street": "100 Harbor Way",
+      "locality": "Sample City",
+      "region": "CA",
+      "postal_code": "94016",
+      "country": "US",
+      "raw": null
+    },
+    "source": "json-ld",
+    "confidence": "high",
+    "inferred": false,
+    "page": "https://northwind.example/"
+  },
+  "open_graph": {
+    "og:site_name": "Northwind Labs",
+    "og:title": "Northwind Labs",
+    "og:description": "Product analytics for B2B teams.",
+    "og:url": "https://northwind.example/",
+    "og:type": "website"
+  },
+  "twitter": {
+    "twitter:card": "summary",
+    "twitter:site": "@northwindlabs"
+  },
+  "json_ld": [
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Northwind Labs",
+      "url": "https://northwind.example/",
+      "email": "hello@northwind.example",
+      "telephone": "+1-415-555-0148",
+      "description": "Structured description that should not replace the meta description.",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "100 Harbor Way",
+        "addressLocality": "Sample City",
+        "addressRegion": "CA",
+        "postalCode": "94016",
+        "addressCountry": "US"
+      },
+      "sameAs": [
+        "https://www.linkedin.com/company/northwind-labs",
+        "https://twitter.com/northwindlabs",
+        "https://github.com/northwind-labs"
+      ]
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "NW",
+      "url": "https://northwind.example/"
+    }
+  ],
+  "technologies": [
+    {
+      "name": "WordPress",
+      "source": "html",
+      "evidence": "WordPress 6.5.5",
+      "page": "https://northwind.example/"
+    },
+    {
+      "name": "Google Analytics",
+      "source": "html",
+      "evidence": "googletagmanager.com/gtag",
+      "page": "https://northwind.example/"
+    },
+    {
+      "name": "HubSpot",
+      "source": "html",
+      "evidence": "js.hs-scripts.com",
+      "page": "https://northwind.example/"
+    },
+    {
+      "name": "jQuery",
+      "source": "html",
+      "evidence": "jquery-3",
+      "page": "https://northwind.example/"
+    },
+    {
+      "name": "Cloudflare",
+      "source": "header",
+      "evidence": "cloudflare",
+      "page": "https://northwind.example/"
+    }
+  ],
+  "contact_forms": [
+    {
+      "action": "https://northwind.example/thanks",
+      "method": "post",
+      "page": "https://northwind.example/contact",
+      "source": "html-form"
+    }
+  ],
+  "booking_links": [
+    {
+      "provider": "Calendly",
+      "url": "https://calendly.com/northwind-labs/intro",
+      "source": "html-link",
+      "page": "https://northwind.example/"
+    },
+    {
+      "provider": "HubSpot Meetings",
+      "url": "https://meetings.hubspot.com/northwind/demo",
+      "source": "html-link",
+      "page": "https://northwind.example/contact"
+    }
+  ],
+  "live_chat": [
+    {
+      "provider": "Intercom",
+      "source": "html",
+      "evidence": "widget.intercom.io",
+      "page": "https://northwind.example/"
+    },
+    {
+      "provider": "Tawk",
+      "source": "html",
+      "evidence": "embed.tawk.to",
+      "page": "https://northwind.example/contact"
+    }
+  ],
+  "pages": [
+    {
+      "url": "https://northwind.example/",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "url": "https://northwind.example/contact",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "url": "https://northwind.example/about",
+      "status": 200,
+      "ok": true,
+      "error": null
+    }
+  ],
+  "robots": {
+    "url": "https://northwind.example/robots.txt",
+    "status": "ok",
+    "http_status": 200,
+    "crawl_delay_seconds": null
+  },
+  "warnings": []
+}
