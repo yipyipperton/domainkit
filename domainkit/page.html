@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DomainKit</title>
+  <meta name="description" content="One domain in. Structured business data out.">
+  <style>
+    :root {
+      --bg: #f3f0e8;
+      --paper: #fffdf8;
+      --ink: #1c1915;
+      --muted: #6d665c;
+      --line: #e3dcd0;
+      --accent: #1e4f3a;
+      --accent-ink: #f4faf6;
+      --badge: #f4e6c4;
+      --badge-ink: #6d4e12;
+      --error-bg: #fbf1ec;
+      --error-ink: #7c3424;
+      --error-line: #e7c9be;
+      --shadow: 0 1px 0 rgba(28, 25, 21, 0.04);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, #f7f4ee 0%, var(--bg) 220px);
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    .wrap {
+      width: min(920px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 2.5rem 0 4rem;
+    }
+
+    header h1 {
+      margin: 0;
+      font-family: "Iowan Old Style", Palatino, Georgia, serif;
+      font-size: clamp(2.2rem, 5vw, 3.1rem);
+      font-weight: 500;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+    }
+
+    .subtitle {
+      margin: 0.55rem 0 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    form {
+      margin-top: 1.75rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.45rem;
+      font-size: 0.82rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .row {
+      display: flex;
+      gap: 0.65rem;
+      align-items: stretch;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      padding: 0.95rem 1rem;
+      border: 1px solid #d9d1c4;
+      border-radius: 14px;
+      background: var(--paper);
+      color: var(--ink);
+      font: inherit;
+      font-size: 1.15rem;
+      box-shadow: var(--shadow);
+    }
+
+    input:focus, button:focus-visible, summary:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 0.95rem 1.3rem;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:disabled { cursor: wait; opacity: 0.7; }
+
+    #enrich {
+      background: var(--accent);
+      color: var(--accent-ink);
+      min-width: 8.5rem;
+    }
+
+    #enrich:hover:not(:disabled) { background: #173d2d; }
+
+    #copy {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid #c9d7ce;
+      padding: 0.55rem 0.85rem;
+      border-radius: 10px;
+      font-size: 0.92rem;
+    }
+
+    #copy:disabled { color: var(--muted); border-color: var(--line); cursor: not-allowed; opacity: 1; }
+
+    .hint, .status, .detail, .meta, .empty {
+      color: var(--muted);
+    }
+
+    .hint { margin: 0.7rem 0 0; font-size: 0.92rem; }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      min-height: 1.5rem;
+      margin: 1rem 0 0;
+    }
+
+    .spinner {
+      width: 0.9rem;
+      height: 0.9rem;
+      border: 2px solid #ddd4c6;
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .spinner { animation: none; border-top-color: var(--accent); }
+    }
+
+    .error {
+      margin-top: 1rem;
+      padding: 0.9rem 1rem;
+      background: var(--error-bg);
+      color: var(--error-ink);
+      border: 1px solid var(--error-line);
+      border-radius: 14px;
+    }
+
+    .error p { margin: 0; }
+    .error .detail { margin-top: 0.35rem; color: #8d5346; }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      align-items: flex-end;
+      margin: 1.5rem 0 0.8rem;
+    }
+
+    .toolbar h2 {
+      margin: 0;
+      font-family: "Iowan Old Style", Palatino, Georgia, serif;
+      font-size: 1.55rem;
+      font-weight: 500;
+    }
+
+    .toolbar a { color: var(--accent); }
+
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 0.95rem 1rem 1rem;
+      box-shadow: var(--shadow);
+    }
+
+    .card h3 {
+      margin: 0 0 0.45rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .name {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 1.2rem;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+      background: var(--badge);
+      color: var(--badge-ink);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .missing { margin: 0; color: var(--muted); }
+
+    ul { margin: 0; padding-left: 1.1rem; }
+    li + li { margin-top: 0.35rem; }
+
+    a { color: var(--accent); }
+    .stack { display: grid; gap: 0.55rem; }
+    .stack p, .kv p { margin: 0; }
+    .kv { display: grid; gap: 0.25rem; }
+    .k { color: var(--muted); margin-right: 0.4rem; }
+
+    details {
+      margin-top: 0.9rem;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 0.75rem 1rem 0.9rem;
+    }
+
+    summary { cursor: pointer; font-weight: 600; }
+    pre {
+      margin: 0.75rem 0 0;
+      overflow: auto;
+      padding: 0.8rem;
+      border-radius: 10px;
+      background: #f6f3ec;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    @media (min-width: 760px) {
+      .cards { grid-template-columns: 1fr 1fr; }
+      .wide { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 640px) {
+      .wrap { width: min(100% - 1.25rem, 920px); padding-top: 1.4rem; }
+      .row, .toolbar { flex-direction: column; align-items: stretch; }
+      #enrich, #copy { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <h1>DomainKit</h1>
+      <p class="subtitle">One domain in. Structured business data out.</p>
+    </header>
+
+    <form id="lookup">
+      <label for="domain">Company URL or domain</label>
+      <div class="row">
+        <input id="domain" name="domain" type="text" inputmode="url" autocomplete="url" spellcheck="false" placeholder="example.com" required>
+        <button id="enrich" type="submit">Enrich</button>
+      </div>
+      <p class="hint">Public pages only. Private addresses are blocked, and robots.txt is respected.</p>
+    </form>
+
+    <p id="status" class="status" role="status" hidden></p>
+    <div id="error" class="error" role="alert" hidden></div>
+
+    <section id="results" hidden>
+      <div class="toolbar">
+        <div>
+          <h2 id="summary">Result</h2>
+          <p id="final-url" class="meta"></p>
+        </div>
+        <button id="copy" type="button" disabled>Copy JSON</button>
+      </div>
+      <div id="cards" class="cards"></div>
+      <details id="raw">
+        <summary>Raw JSON</summary>
+        <pre id="json"></pre>
+      </details>
+    </section>
+  </main>
+  <noscript>This page needs JavaScript to call the enrichment API.</noscript>
+  <script>
+    const form = document.getElementById("lookup");
+    const input = document.getElementById("domain");
+    const submitButton = document.getElementById("enrich");
+    const statusEl = document.getElementById("status");
+    const errorEl = document.getElementById("error");
+    const resultsEl = document.getElementById("results");
+    const summaryEl = document.getElementById("summary");
+    const finalUrlEl = document.getElementById("final-url");
+    const cardsEl = document.getElementById("cards");
+    const copyButton = document.getElementById("copy");
+    const jsonEl = document.getElementById("json");
+    let lastPayload = null;
+
+    const PLATFORM_LABELS = {
+      linkedin: "LinkedIn",
+      twitter: "X / Twitter",
+      facebook: "Facebook",
+      instagram: "Instagram",
+      youtube: "YouTube",
+      tiktok: "TikTok",
+      github: "GitHub",
+      discord: "Discord",
+      pinterest: "Pinterest",
+      crunchbase: "Crunchbase"
+    };
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function safeHttpUrl(value) {
+      try {
+        const url = new URL(value);
+        if (url.protocol === "http:" || url.protocol === "https:") return url.href;
+      } catch (err) {
+        return null;
+      }
+      return null;
+    }
+
+    function detailText(payload) {
+      if (!payload || typeof payload !== "object") return "";
+      const detail = payload.detail;
+      if (typeof detail === "string") return detail;
+      if (Array.isArray(detail)) {
+        return detail.map((item) => (item && item.msg) || "").filter(Boolean).join(" ");
+      }
+      if (typeof payload.error === "string") return payload.error;
+      const warnings = Array.isArray(payload.warnings) ? payload.warnings.join(" ") : "";
+      return warnings;
+    }
+
+    function blobOf(payload) {
+      const pages = payload && Array.isArray(payload.pages) ? payload.pages : [];
+      const pageErrors = pages.map((page) => page && page.error || "").join(" ");
+      return (detailText(payload) + " " + pageErrors).toLowerCase();
+    }
+
+    function friendlyMessage(status, payload) {
+      const blob = blobOf(payload);
+      if (blob.includes("robots.txt")) {
+        return "robots.txt does not allow DomainKit to read that site.";
+      }
+      if (blob.includes("timed out") || blob.includes("timeout")) {
+        return "The site took too long to respond.";
+      }
+      if (
+        blob.includes("blocked") ||
+        blob.includes("private") ||
+        blob.includes("loopback") ||
+        blob.includes("link-local") ||
+        blob.includes("reserved") ||
+        blob.includes("ip addresses are not")
+      ) {
+        return "That address is private or blocked. DomainKit only fetches public websites.";
+      }
+      if (status === 422 || blob.includes("domain is empty") || blob.includes("field required")) {
+        return "Enter a company domain or URL.";
+      }
+      if (status >= 400) {
+        return "Enter a public company domain, like example.com.";
+      }
+      if (payload && payload.error) {
+        return "DomainKit could not read that website.";
+      }
+      return "DomainKit could not enrich that domain.";
+    }
+
+    function homepageBlocked(payload) {
+      const pages = Array.isArray(payload.pages) ? payload.pages : [];
+      const anyOk = pages.some((page) => page && page.ok);
+      return !anyOk && blobOf(payload).includes("robots.txt");
+    }
+
+    function setLoading(on) {
+      submitButton.disabled = on;
+      submitButton.textContent = on ? "Enriching…" : "Enrich";
+      form.setAttribute("aria-busy", on ? "true" : "false");
+      if (on) {
+        statusEl.hidden = false;
+        statusEl.innerHTML = '<span class="spinner" aria-hidden="true"></span> Reading the public pages…';
+      } else {
+        statusEl.hidden = true;
+        statusEl.textContent = "";
+      }
+    }
+
+    function showError(message, detail) {
+      errorEl.hidden = false;
+      const extra = detail && detail !== message
+        ? '<p class="detail">' + escapeHtml(detail) + "</p>"
+        : "";
+      errorEl.innerHTML = "<p>" + escapeHtml(message) + "</p>" + extra;
+    }
+
+    function clearError() {
+      errorEl.hidden = true;
+      errorEl.innerHTML = "";
+    }
+
+    function missing() {
+      return '<p class="missing">Not found</p>';
+    }
+
+    function metaLine(source) {
+      if (!source) return "";
+      return '<p class="meta">' + escapeHtml(source) + "</p>";
+    }
+
+    function textValue(field) {
+      if (!field || field.value == null) return "";
+      if (typeof field.value === "object") return "";
+      return String(field.value).trim();
+    }
+
+    function linkOrText(value) {
+      const href = safeHttpUrl(value);
+      if (!href) return escapeHtml(value);
+      return '<a href="' + escapeHtml(href) + '" rel="noopener noreferrer" target="_blank">' + escapeHtml(href) + "</a>";
+    }
+
+    function card(title, body, wide) {
+      return '<article class="card' + (wide ? " wide" : "") + '"><h3>' + escapeHtml(title) + "</h3>" + body + "</article>";
+    }
+
+    function scalarCard(title, field, wide) {
+      const value = textValue(field);
+      if (!value) return card(title, missing(), wide);
+      return card(title, "<p>" + escapeHtml(value) + "</p>" + metaLine(field.source), wide);
+    }
+
+    function listCard(title, items, renderItem, wide) {
+      if (!items || !items.length) return card(title, missing(), wide);
+      const rows = items.map(renderItem).filter(Boolean);
+      if (!rows.length) return card(title, missing(), wide);
+      return card(title, "<ul>" + rows.map((row) => "<li>" + row + "</li>").join("") + "</ul>", wide);
+    }
+
+    function companyCard(field) {
+      const value = textValue(field);
+      if (!value) return card("Company", missing(), false);
+      const badge = field.inferred ? '<span class="badge">inferred</span>' : "";
+      return card("Company", '<p class="name">' + escapeHtml(value) + badge + "</p>" + metaLine(field.source), false);
+    }
+
+    function addressBody(field) {
+      if (!field || !field.value || typeof field.value !== "object") return missing();
+      const value = field.value;
+      const street = value.street || "";
+      const city = [value.locality, value.region].filter(Boolean).join(", ");
+      const postal = value.postal_code || "";
+      const locality = [city, postal].filter(Boolean).join(" ");
+      const lines = [street, locality, value.country, value.raw].filter(Boolean);
+      if (!lines.length) return missing();
+      return lines.map((line) => "<p>" + escapeHtml(line) + "</p>").join("") + metaLine(field.source);
+    }
+
+    function metadataBody(data) {
+      const blocks = [];
+      const graph = data.open_graph && typeof data.open_graph === "object" ? data.open_graph : null;
+      const twitter = data.twitter && typeof data.twitter === "object" ? data.twitter : null;
+      const jsonLd = Array.isArray(data.json_ld) ? data.json_ld : [];
+      if (graph && Object.keys(graph).length) {
+        const rows = Object.keys(graph).map((key) => {
+          return "<p><span class=\"k\">" + escapeHtml(key) + "</span> " + escapeHtml(graph[key]) + "</p>";
+        }).join("");
+        blocks.push("<div class=\"kv\"><p><strong>Open Graph</strong></p>" + rows + "</div>");
+      }
+      if (twitter && Object.keys(twitter).length) {
+        const rows = Object.keys(twitter).map((key) => {
+          return "<p><span class=\"k\">" + escapeHtml(key) + "</span> " + escapeHtml(twitter[key]) + "</p>";
+        }).join("");
+        blocks.push("<div class=\"kv\"><p><strong>Twitter</strong></p>" + rows + "</div>");
+      }
+      if (jsonLd.length) {
+        const rows = jsonLd.map((item) => {
+          if (!item || typeof item !== "object") return "<p>JSON-LD</p>";
+          const kind = item["@type"] ? String(item["@type"]) : "JSON-LD";
+          const name = item.name ? " · " + String(item.name) : "";
+          return "<p>" + escapeHtml(kind + name) + "</p>";
+        }).join("");
+        blocks.push("<div class=\"kv\"><p><strong>JSON-LD</strong></p>" + rows + "</div>");
+      }
+      if (!blocks.length) return missing();
+      return '<div class="stack">' + blocks.join("") + "</div>";
+    }
+
+    function socialBody(social) {
+      const entries = social && typeof social === "object" ? Object.keys(social) : [];
+      const rows = [];
+      entries.forEach((key) => {
+        const items = Array.isArray(social[key]) ? social[key] : [];
+        items.forEach((item) => {
+          const value = textValue(item);
+          if (!value) return;
+          const label = PLATFORM_LABELS[key] || key;
+          rows.push("<p><span class=\"k\">" + escapeHtml(label) + "</span> " + linkOrText(value) + "</p>");
+        });
+      });
+      if (!rows.length) return missing();
+      return '<div class="stack">' + rows.join("") + "</div>";
+    }
+
+    function render(data) {
+      const cards = [
+        companyCard(data.company_name),
+        scalarCard("Title", data.website_title, false),
+        scalarCard("Description", data.meta_description, true),
+        listCard("Emails", data.emails, (item) => {
+          const value = textValue(item);
+          if (!value) return "";
+          return '<a href="mailto:' + escapeHtml(value) + '">' + escapeHtml(value) + "</a>" + metaLine(item.source);
+        }, false),
+        listCard("Phones", data.phones, (item) => {
+          const value = textValue(item);
+          if (!value) return "";
+          return '<a href="tel:' + escapeHtml(value.replace(/\s+/g, "")) + '">' + escapeHtml(value) + "</a>" + metaLine(item.source);
+        }, false),
+        card("Social links", socialBody(data.social_links), true),
+        card("Address", addressBody(data.address), false),
+        card("Structured metadata", metadataBody(data), true),
+        listCard("Technologies", data.technologies, (item) => {
+          if (!item || !item.name) return "";
+          const evidence = item.evidence ? metaLine(item.evidence) : "";
+          return escapeHtml(item.name) + evidence;
+        }, false),
+        listCard("Contact forms", data.contact_forms, (item) => {
+          if (!item) return "";
+          const action = item.action ? linkOrText(item.action) : "Not found";
+          const method = item.method ? escapeHtml(String(item.method).toUpperCase()) + " " : "";
+          return method + action;
+        }, false),
+        listCard("Booking links", data.booking_links, (item) => {
+          if (!item || !item.url) return "";
+          const provider = item.provider ? escapeHtml(item.provider) + " · " : "";
+          return provider + linkOrText(item.url);
+        }, false),
+        listCard("Chat widgets", data.live_chat, (item) => {
+          if (!item || !item.provider) return "";
+          return escapeHtml(item.provider) + (item.evidence ? metaLine(item.evidence) : "");
+        }, false),
+        listCard("Pages fetched", data.pages, (item) => {
+          if (!item || !item.url) return "";
+          const status = item.status == null ? "" : " · " + escapeHtml(item.status);
+          const problem = item.error ? metaLine(item.error) : "";
+          return linkOrText(item.url) + status + problem;
+        }, true)
+      ];
+      cardsEl.innerHTML = cards.join("");
+      const domain = data.domain || data.input || "Result";
+      summaryEl.textContent = domain;
+      const finalUrl = safeHttpUrl(data.final_url);
+      finalUrlEl.innerHTML = finalUrl ? linkOrText(finalUrl) : "";
+    }
+
+    function showPayload(payload, status) {
+      lastPayload = payload;
+      jsonEl.textContent = JSON.stringify(payload, null, 2);
+      copyButton.disabled = false;
+      resultsEl.hidden = false;
+      const failed = status >= 400 || (payload && payload.error) || homepageBlocked(payload);
+      if (failed) {
+        const detail = detailText(payload);
+        showError(friendlyMessage(status, payload), detail);
+        cardsEl.innerHTML = "";
+        summaryEl.textContent = (payload && (payload.domain || payload.input)) || input.value.trim() || "Result";
+        finalUrlEl.textContent = "";
+        return;
+      }
+      clearError();
+      render(payload || {});
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const domain = input.value.trim();
+      if (!domain) {
+        showError("Enter a company domain or URL.");
+        return;
+      }
+      clearError();
+      resultsEl.hidden = true;
+      cardsEl.innerHTML = "";
+      setLoading(true);
+      try {
+        const response = await fetch("/enrich?domain=" + encodeURIComponent(domain), {
+          headers: { "Accept": "application/json" }
+        });
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch (err) {
+          payload = null;
+        }
+        if (!payload || typeof payload !== "object") {
+          showError("DomainKit returned a response the page could not read.");
+          return;
+        }
+        showPayload(payload, response.status);
+      } catch (err) {
+        showError("DomainKit could not reach the enrichment service.");
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    copyButton.addEventListener("click", async () => {
+      if (!lastPayload) return;
+      const text = JSON.stringify(lastPayload, null, 2);
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (err) {
+        const area = document.createElement("textarea");
+        area.value = text;
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand("copy");
+        area.remove();
+      }
+      copyButton.textContent = "Copied";
+      window.setTimeout(() => { copyButton.textContent = "Copy JSON"; }, 1600);
+    });
+  </script>
+</body>
+</html>

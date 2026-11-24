@@ -40,6 +40,9 @@ domainkit = "domainkit.cli:main"
 [tool.setuptools]
 packages = ["domainkit"]
 
+[tool.setuptools.package-data]
+domainkit = ["page.html"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

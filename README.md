@@ -2,7 +2,7 @@
 
 Open-source company intelligence for AI agents. One domain in. Structured business data out.
 
-DomainKit takes a public company domain and returns JSON: the name, title, description, emails, phone numbers, social profiles, address, and the booking links, contact forms, chat widgets, and website technologies that are visible in the HTML. It is a small library, a command-line tool, and a local HTTP API. There is no database, no account, and no paid API.
+DomainKit takes a public company domain and returns JSON: the name, title, description, emails, phone numbers, social profiles, address, and the booking links, contact forms, chat widgets, and website technologies that are visible in the HTML. It is a small library, a command-line tool, a local HTTP API, and a single web page. There is no database, no account, and no paid API.
 
 ## Install
 
@@ -48,6 +48,16 @@ print(record["company_name"])
 
 `enrich` raises `domainkit.errors.InvalidDomain` for input that is not a public domain, and `domainkit.errors.UnsafeDestination` when the host or a homepage redirect resolves to a private, loopback, link-local, or other reserved address. A timeout or a DNS failure on a public host is returned in the `error` field.
 
+## Website
+
+```bash
+domainkit serve
+```
+
+Then open http://127.0.0.1:8747.
+
+Paste a company URL or domain. The page calls `GET /enrich` and shows what came back: company name (with an inferred badge when the name was derived), title, description, emails, phones, social links, address, structured metadata, technologies, contact forms, booking links, chat widgets, and pages fetched. Empty fields say "Not found". Use Copy JSON for the response body, or open Raw JSON. The page is one HTML file with plain CSS and JavaScript. There is no build step.
+
 ## HTTP
 
 `domainkit serve` binds to `127.0.0.1:8747` by default. Leave it there. The process has no authentication and will fetch any public domain you ask for, using this machine's IP address.
@@ -57,7 +67,7 @@ curl "http://127.0.0.1:8747/health"
 curl "http://127.0.0.1:8747/enrich?domain=example.com"
 ```
 
-`GET /enrich` returns the same JSON as `enrich()`. Invalid domains and blocked destinations are HTTP 400. A missing `domain` query is HTTP 422. FastAPI also publishes `/docs`.
+`GET /` is the website. `GET /enrich` returns the same JSON as `enrich()`. Invalid domains and blocked destinations are HTTP 400. A missing `domain` query is HTTP 422. FastAPI also publishes `/docs`.
 
 ## What comes back
 

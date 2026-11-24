@@ -6,14 +6,11 @@ from domainkit.fetch import SafeClient
 from tests.support import NORTHWIND_INPUT, FakeTransport, northwind_client
 
 
-def test_health_and_root():
+def test_health():
     client = TestClient(create_app())
     health = client.get("/health")
     assert health.status_code == 200
     assert health.json() == {"status": "ok"}
-    root = client.get("/")
-    assert root.status_code == 200
-    assert root.json()["enrich"] == "/enrich?domain=example.com"
 
 
 def test_missing_domain_is_rejected():
