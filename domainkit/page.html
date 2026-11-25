@@ -280,7 +280,7 @@
         <input id="domain" name="domain" type="text" inputmode="url" autocomplete="url" spellcheck="false" placeholder="example.com" required>
         <button id="enrich" type="submit">Enrich</button>
       </div>
-      <p class="hint">Public pages only. Private addresses are blocked, and robots.txt is respected.</p>
+      <p class="hint">Find company details, contact info, social links, and website tools published on public pages.</p>
     </form>
 
     <p id="status" class="status" role="status" hidden></p>
@@ -386,6 +386,12 @@
       }
       if (status === 422 || blob.includes("domain is empty") || blob.includes("field required")) {
         return "Enter a company domain or URL.";
+      }
+      if (status === 429) {
+        return "The demo is busy. Try again in a minute.";
+      }
+      if (status >= 500) {
+        return "The lookup service is temporarily unavailable. Try again shortly.";
       }
       if (status >= 400) {
         return "Enter a public company domain, like example.com.";
@@ -623,7 +629,11 @@
           payload = null;
         }
         if (!payload || typeof payload !== "object") {
-          showError("DomainKit returned a response the page could not read.");
+          showError(response.status === 429
+            ? "The demo is busy. Try again in a minute."
+            : response.status >= 500
+              ? "The lookup service is temporarily unavailable. Try again shortly."
+              : "DomainKit returned a response the page could not read.");
           return;
         }
         showPayload(payload, response.status);

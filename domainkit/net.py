@@ -192,7 +192,9 @@ def origin_of(scheme: str, host: str, port: int) -> str:
     return f"{scheme}://{_format_netloc(host, port, scheme)}"
 
 
-def validate_destination(url: str, resolver=default_resolver) -> ResolvedURL:
+def validate_destination(
+    url: str, resolver=default_resolver, *, standard_ports_only: bool = False
+) -> ResolvedURL:
     """Validate one URL and resolve every address it can point at.
 
     ``resolver`` is injectable so tests can simulate DNS without the network.
@@ -227,7 +229,10 @@ def validate_destination(url: str, resolver=default_resolver) -> ResolvedURL:
         raise UnsafeDestination(f"invalid URL port: {exc}") from exc
     if port == 0:
         raise UnsafeDestination("port 0 is not allowed")
-    resolved_port = port or (443 if scheme == "https" else 80)
+    default_port = 443 if scheme == "https" else 80
+    resolved_port = port or default_port
+    if standard_ports_only and resolved_port != default_port:
+        raise UnsafeDestination("blocked port: use standard HTTP or HTTPS ports")
 
     try:
         host = canonical_host(parts.hostname)

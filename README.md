@@ -58,6 +58,14 @@ Then open http://127.0.0.1:8747.
 
 Paste a company URL or domain. The page calls `GET /enrich` and shows what came back: company name (with an inferred badge when the name was derived), title, description, emails, phones, social links, address, structured metadata, technologies, contact forms, booking links, chat widgets, and pages fetched. Empty fields say "Not found". Use Copy JSON for the response body, or open Raw JSON. The page is one HTML file with plain CSS and JavaScript. There is no build step.
 
+### Deploy the public demo on Vercel
+
+1. In [Vercel's project import](https://vercel.com/new), choose this GitHub repository.
+2. Select **FastAPI** if it is not auto-detected, keep the root directory at the repository root, and deploy. No API keys or build output directory are needed. Vercel finds the hosted app in `app.py`.
+3. Open the deployment URL and paste a public company domain. Check that `/health` returns `{"status":"ok"}`.
+
+The hosted app reuses the localhost UI and API, but visits at most three pages and caps upstream requests, redirects, response size, lookups per minute, and concurrent lookups. It restricts all outbound hops to the default HTTP and HTTPS ports and retains DNS/IP checks, connection pinning and robots.txt handling. In-app limits are per running instance, not deployment-wide. Before broadly promoting the demo, configure a per-client rate limit on `/enrich` at the edge if available for your plan. No user-submitted URLs are stored by the app.
+
 ## HTTP
 
 `domainkit serve` binds to `127.0.0.1:8747` by default. Leave it there. The process has no authentication and will fetch any public domain you ask for, using this machine's IP address.

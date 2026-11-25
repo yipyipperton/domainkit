@@ -251,3 +251,27 @@ def test_requests_transport_connects_only_to_the_pinned_ip(monkeypatch):
     assert seen
     assert all(address[0] == PUBLIC for address in seen)
     assert all(address[0] != "example.com" for address in seen)
+
+
+def test_transport_does_not_read_redirect_body(monkeypatch):
+    class Redirect:
+        status_code = 302
+        headers = {"Location": "/done", "Content-Length": "9000000"}
+        closed = False
+
+        def iter_content(self, **kwargs):
+            raise AssertionError("redirect body must not be read")
+
+        def close(self):
+            self.closed = True
+
+    redirect = Redirect()
+    monkeypatch.setattr("domainkit.fetch._PinnedAdapter.send", lambda *_args, **_kw: redirect)
+    fetched = RequestsTransport().request(
+        "GET", "https://example.com/", headers={"User-Agent": USER_AGENT},
+        timeout=1, connect_timeout=1, max_bytes=1000, pinned_ip=PUBLIC,
+    )
+    assert fetched.status == 302
+    assert fetched.headers["location"] == "/done"
+    assert fetched.body == b""
+    assert redirect.closed

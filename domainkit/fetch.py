@@ -189,13 +189,15 @@ class RequestsTransport:
         session.mount("https://", adapter)
         try:
             try:
-                response = session.request(
-                    method,
-                    url,
-                    headers=headers,
+                # Session.send prepares a next redirect even when redirects are
+                # disabled, reading its body first. Use the pinned adapter directly.
+                prepared = session.prepare_request(requests.Request(method, url, headers=headers))
+                response = adapter.send(
+                    prepared,
                     timeout=(connect_timeout, timeout),
-                    allow_redirects=False,
                     stream=True,
+                    verify=True,
+                    proxies={},
                 )
             except requests.exceptions.Timeout as exc:
                 raise FetchError(f"timed out fetching {url}") from exc
@@ -203,6 +205,8 @@ class RequestsTransport:
                 raise FetchError(f"request failed for {url}: {exc}") from exc
             try:
                 header_map = normalize_headers(response.headers)
+                if response.status_code in _REDIRECT_STATUSES:
+                    return RawResponse(response.status_code, header_map, b"", url)
                 reject_declared_length(header_map.get("content-length"), max_bytes)
                 try:
                     body = read_limited(response.iter_content(chunk_size=65536), max_bytes)
@@ -251,7 +255,10 @@ class SafeClient:
     max_crawl_delay: float = DEFAULT_MAX_CRAWL_DELAY
     sleeper: Callable[[float], None] = time.sleep
     clock: Callable[[], float] = time.monotonic
+    standard_ports_only: bool = False
+    max_requests: int | None = None
     warnings: list[str] = field(default_factory=list)
+    _request_count: int = field(default=0, init=False)
     _robots: dict[str, RobotsPolicy] = field(default_factory=dict)
     _last_request: dict[str, float] = field(default_factory=dict)
     _crawl_warned: set[str] = field(default_factory=set)
@@ -262,12 +269,15 @@ class SafeClient:
         if self.resolver is None:
             self.resolver = default_resolver
 
+    def _resolve(self, url: str) -> ResolvedURL:
+        return validate_destination(url, self.resolver, standard_ports_only=self.standard_ports_only)
+
     def get(self, url: str) -> FetchResult:
         return self._fetch(url, check_robots=True)
 
     def robot_policy(self, url: str) -> RobotsPolicy | None:
         try:
-            resolved = validate_destination(url, self.resolver)
+            resolved = self._resolve(url)
         except (UnsafeDestination, FetchError):
             return None
         return self._robots.get(resolved.origin)
@@ -284,7 +294,9 @@ class SafeClient:
         seen: set[str] = set()
         redirects = 0
         while True:
-            resolved = validate_destination(current, self.resolver)
+            if self.max_requests is not None and self._request_count >= self.max_requests:
+                raise FetchError("hosted lookup reached its request limit")
+            resolved = self._resolve(current)
             current = resolved.url
             if current in seen:
                 raise FetchError(f"redirect loop at {current}")
@@ -293,6 +305,9 @@ class SafeClient:
                 policy = self._ensure_robots(resolved)
                 if not policy.parser.can_fetch(self.user_agent, current):
                     raise RobotsDenied(current, self._deny_reason(resolved, policy))
+            if self.max_requests is not None and self._request_count >= self.max_requests:
+                raise FetchError("hosted lookup reached its request limit")
+            self._request_count += 1
             self._pace(resolved)
             assert self.transport is not None
             response = self.transport.request(
@@ -355,7 +370,7 @@ class SafeClient:
             self.warnings.append(self._deny_reason(resolved, policy))
             return policy
 
-        if result.status in {401, 403} or 500 <= result.status <= 599:
+        if result.status in {401, 403, 429} or 500 <= result.status <= 599:
             policy = RobotsPolicy(
                 parser=_deny_parser(),
                 status="denied" if result.status in {401, 403} else "unavailable",
