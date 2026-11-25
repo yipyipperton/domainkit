@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: domainkit-preview
+    runtime: python
+    plan: free
+    autoDeployTrigger: off
+    buildCommand: python -m pip install -r requirements.txt
+    startCommand: python -m uvicorn render_app:start --factory --host 0.0.0.0 --port "$PORT" --no-access-log
+    healthCheckPath: /health
+    envVars:
+      - key: DOMAINKIT_PREVIEW_PASSWORD
+        sync: false

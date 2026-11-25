@@ -58,6 +58,12 @@ Then open http://127.0.0.1:8747.
 
 Paste a company URL or domain. The page calls `GET /enrich` and shows what came back: company name (with an inferred badge when the name was derived), title, description, emails, phones, social links, address, structured metadata, technologies, contact forms, booking links, chat widgets, and pages fetched. Empty fields say "Not found". Use Copy JSON for the response body, or open Raw JSON. The page is one HTML file with plain CSS and JavaScript. There is no build step.
 
+### Run the full crawler online without Vercel
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/yipyipperton/domainkit)
+
+The Render Blueprint uses a free Python web service with the same hosted crawler as the Vercel version, with no preset domain list. During setup pick a new preview password of at least 16 ASCII characters. After deploying, open your service URL and sign in as `domainkit` with that password. The access gate covers the website and lookup API. The free instance can take a little time to wake after inactivity. Sites that block automated access, require login, or expose their content only through JavaScript may still be unavailable or incomplete.
+
 ### Deploy the public demo on Vercel
 
 1. In [Vercel's project import](https://vercel.com/new), choose this GitHub repository.
