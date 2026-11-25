@@ -368,6 +368,9 @@
 
     function friendlyMessage(status, payload) {
       const blob = blobOf(payload);
+      if (status === 503 && payload && typeof payload.detail === "string") {
+        return payload.detail;
+      }
       if (blob.includes("robots.txt")) {
         return "robots.txt does not allow DomainKit to read that site.";
       }
@@ -388,7 +391,7 @@
         return "Enter a company domain or URL.";
       }
       if (status === 429) {
-        return "The demo is busy. Try again in a minute.";
+        return "Too many requests. Please try again in a minute.";
       }
       if (status >= 500) {
         return "The lookup service is temporarily unavailable. Try again shortly.";
@@ -414,7 +417,7 @@
       form.setAttribute("aria-busy", on ? "true" : "false");
       if (on) {
         statusEl.hidden = false;
-        statusEl.innerHTML = '<span class="spinner" aria-hidden="true"></span> Reading the public pages…';
+        statusEl.innerHTML = '<span class="spinner" aria-hidden="true"></span> Looking up public pages. Please keep this tab open…';
       } else {
         statusEl.hidden = true;
         statusEl.textContent = "";
@@ -630,7 +633,7 @@
         }
         if (!payload || typeof payload !== "object") {
           showError(response.status === 429
-            ? "The demo is busy. Try again in a minute."
+            ? "Too many requests. Please try again in a minute."
             : response.status >= 500
               ? "The lookup service is temporarily unavailable. Try again shortly."
               : "DomainKit returned a response the page could not read.");

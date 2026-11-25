@@ -19,7 +19,7 @@ def create_preview(password: str):
         raise RuntimeError("Set DOMAINKIT_PREVIEW_PASSWORD to at least 16 ASCII characters.")
 
     expected = hashlib.sha256(("domainkit:" + password).encode()).digest()
-    preview = create_app(hosted=True)
+    preview = create_app(hosted=True, queue_preview=True)
 
     @preview.middleware("http")
     async def require_preview_password(request: Request, call_next):
