@@ -2,7 +2,9 @@ import pytest
 
 from domainkit.enricher import discover_pages, enrich
 from domainkit.errors import FetchError, InvalidDomain, UnsafeDestination
+from domainkit.fetch import SafeClient
 from tests.support import (
+    FakeTransport,
     NORTHWIND_INPUT,
     PUBLIC_IP,
     northwind_client,
@@ -174,3 +176,28 @@ def test_linked_pages_win_over_guesses():
         "https://northwind.example/team",
         "https://northwind.example/contact",
     ]
+
+
+def test_refused_homepage_is_not_reported_as_empty_success():
+
+    home = "https://blocked.example/"
+    transport = FakeTransport({home: response(403, {"content-type": "text/html"}, b"<html>Forbidden</html>")})
+    client = SafeClient(transport=transport, resolver=lambda *_: ["8.8.8.8"], per_host_delay=0)
+    result = enrich(home, client=client)
+    assert result["error"] == "The website refused this request (HTTP 403)."
+    assert result["pages"][0]["ok"] is False
+    assert result["emails"] == []
+
+
+def test_challenge_response_is_not_parsed_as_the_homepage():
+
+    home = "https://challenged.example/"
+    transport = FakeTransport({
+        home: response(403, {"content-type": "text/html", "cf-mitigated": "challenge"},
+                       b"<html><title>Just a moment</title></html>")
+    })
+    client = SafeClient(transport=transport, resolver=lambda *_: ["8.8.8.8"], per_host_delay=0)
+    result = enrich(home, client=client)
+    assert result["error"] == "The website required a browser security check (Cloudflare challenge)."
+    assert result["website_title"] is None
+    assert transport.calls == [home + "robots.txt", home]

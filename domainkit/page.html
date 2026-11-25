@@ -371,6 +371,14 @@
       if (status === 503 && payload && typeof payload.detail === "string") {
         return payload.detail;
       }
+      if (payload && typeof payload.error === "string" && (
+        payload.error.startsWith("The website refused") ||
+        payload.error.startsWith("The website required") ||
+        payload.error.startsWith("The website is rate-limiting") ||
+        payload.error.startsWith("The website returned")
+      )) {
+        return payload.error;
+      }
       if (blob.includes("robots.txt")) {
         return "robots.txt does not allow DomainKit to read that site.";
       }
@@ -623,7 +631,8 @@
         showError(friendlyMessage(status, payload), detail);
         cardsEl.innerHTML = "";
         summaryEl.textContent = (payload && (payload.domain || payload.input)) || input.value.trim() || "Result";
-        finalUrlEl.textContent = "";
+        const sourceUrl = safeHttpUrl(payload && payload.final_url);
+        finalUrlEl.innerHTML = sourceUrl ? linkOrText(sourceUrl) : "";
         return;
       }
       clearError();

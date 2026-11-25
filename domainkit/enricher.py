@@ -332,9 +332,19 @@ def _robots_view(client: SafeClient, url: str | None) -> dict | None:
 
 
 def _absorb(result: dict, fetched: FetchResult) -> dict | None:
-    if fetched.status != 200:
+    if fetched.headers.get("cf-mitigated", "").strip().lower() == "challenge":
+        problem = "The website required a browser security check (Cloudflare challenge)."
+    elif fetched.status in {401, 403}:
+        problem = f"The website refused this request (HTTP {fetched.status})."
+    elif fetched.status == 429:
+        problem = "The website is rate-limiting requests (HTTP 429)."
+    elif fetched.status != 200:
+        problem = f"The website returned HTTP {fetched.status}."
+    else:
+        problem = None
+    if problem:
         result["pages"].append(
-            _page_record(fetched.url, status=fetched.status, ok=False, error=f"HTTP {fetched.status}")
+            _page_record(fetched.url, status=fetched.status, ok=False, error=problem)
         )
         return None
     if not looks_like_html(fetched.headers, fetched.body):
@@ -405,6 +415,8 @@ def enrich(
     result["final_url"] = homepage.url
     observations: list[dict] = []
     home_extract = _absorb(result, homepage)
+    if home_extract is None:
+        result["error"] = result["pages"][-1]["error"]
     if home_extract is not None:
         observations.append(home_extract)
         home_host = _site_key(urlsplit(homepage.url).hostname)
