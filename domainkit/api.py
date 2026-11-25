@@ -21,16 +21,17 @@ from domainkit.fetch import SafeClient
 _PAGE_PATH = Path(__file__).with_name("page.html")
 
 
-def _hosted_enrich(domain: str) -> dict:
+def _hosted_enrich(domain: str, *, contact_focus: bool = False) -> dict:
     return enrich(
         domain,
-        max_pages=3,
+        max_pages=6 if contact_focus else 3,
+        contact_focus=contact_focus,
         client=SafeClient(
             standard_ports_only=True,
             timeout=4,
             connect_timeout=3,
             max_redirects=4,
-            max_requests=10,
+            max_requests=14 if contact_focus else 10,
             max_bytes=1_000_000,
         ),
     )
@@ -46,7 +47,7 @@ def create_app(*, hosted: bool = False, queue_preview: bool = False) -> FastAPI:
             "One domain in. Structured business data out."
         ),
     )
-    app.state.enrich = _hosted_enrich if hosted else enrich
+    app.state.enrich = (lambda domain: _hosted_enrich(domain, contact_focus=queue_preview)) if hosted else enrich
     slots = BoundedSemaphore(3)
     preview_slots = asyncio.Semaphore(3)
     preview_pending = 0

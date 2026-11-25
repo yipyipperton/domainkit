@@ -12,11 +12,11 @@ def test_home_page_is_html_and_matches_the_shipped_file():
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     assert response.text == PAGE
-    assert "One domain in. Structured business data out." in response.text
+    assert "Find email addresses published on a company’s website." in response.text
     assert "<h1>DomainKit</h1>" in response.text
     assert 'id="domain"' in response.text
     assert 'id="enrich"' in response.text
-    assert ">Enrich</button>" in response.text
+    assert ">Find emails</button>" in response.text
     assert "Copy JSON" in response.text
     assert "Raw JSON" in response.text
     assert "Not found" in response.text
@@ -25,7 +25,7 @@ def test_home_page_is_html_and_matches_the_shipped_file():
         "Company",
         "Title",
         "Description",
-        "Emails",
+        "Published emails",
         "Phones",
         "Social links",
         "Address",

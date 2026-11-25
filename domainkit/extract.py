@@ -25,6 +25,12 @@ _MAX_TECH = 40
 _JSONLD_CHARS = 500_000
 
 _EMAIL_RE = re.compile(r"\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+_WRITTEN_EMAIL_RE = re.compile(
+    r"(?<![\w.+-])([A-Z0-9._%+\-]+)\s*(?:\[at\]|\(at\))\s*"
+    r"([A-Z0-9-]+(?:(?:\.|\s*\[dot\]\s*|\s*\(dot\)\s*)[A-Z0-9-]+)+)\b",
+    re.IGNORECASE,
+)
+_EMAIL_LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _PHONE_RE = re.compile(
     r"(?<![\w.])(?:\+\d{1,3}[\s.\-]?)?(?:\(\d{2,4}\)[\s.\-]?|\d{3}[\s.\-])\d{3}[\s.\-]\d{4}(?![\w.])"
 )
@@ -242,7 +248,12 @@ def _placeholder_email(email: str) -> bool:
 
 def clean_email(value: str) -> str | None:
     email = value.strip().strip(".").lower()
-    if not _EMAIL_RE.fullmatch(email):
+    if len(email) > 254 or not _EMAIL_RE.fullmatch(email):
+        return None
+    local, _, host = email.partition("@")
+    if len(local) > 64 or local.startswith(".") or local.endswith(".") or ".." in local:
+        return None
+    if not all(_EMAIL_LABEL_RE.fullmatch(label) for label in host.split(".")):
         return None
     if _placeholder_email(email):
         return None
@@ -491,9 +502,15 @@ def _apply_jsonld(page: dict, nodes: list[dict], page_url: str) -> None:
                     page["meta_description"],
                     observed(description, "json-ld", "medium", False, page_url),
                 )
+        contact_nodes = [node] if org or set(types) & {"Person", "ContactPoint"} else []
+        if org or website:
+            contact_nodes.extend(point for point in _as_list(node.get("contactPoint")) if isinstance(point, dict))
+        for contact in contact_nodes:
+            for value in _as_list(contact.get("email")):
+                text = _as_text(value) or ""
+                for match in _EMAIL_RE.finditer(text):
+                    _add_email(page, clean_email(match.group()), "json-ld", "high", page_url)
         if org:
-            for email in _as_list(node.get("email")):
-                _add_email(page, clean_email(_as_text(email) or ""), "json-ld", "high", page_url)
             for phone in _as_list(node.get("telephone")):
                 _add_phone(page, clean_phone(_as_text(phone) or ""), "json-ld", "high", page_url)
             address = _address_value(node.get("address"))
@@ -540,9 +557,6 @@ def _apply_microdata(page: dict, soup: BeautifulSoup, page_url: str) -> None:
         name_el = _direct_prop(node, "name")
         if name_el is not None:
             _consider_name(page, name_el.get_text(" ", strip=True), "microdata", "high", False, page_url)
-        email_el = _direct_prop(node, "email")
-        if email_el is not None:
-            _add_email(page, clean_email(email_el.get_text(" ", strip=True) or email_el.get("href", "").removeprefix("mailto:")), "microdata", "high", page_url)
         phone_el = _direct_prop(node, "telephone")
         if phone_el is not None:
             _add_phone(page, clean_phone(phone_el.get_text(" ", strip=True) or phone_el.get("href", "").removeprefix("tel:")), "microdata", "high", page_url)
@@ -599,6 +613,18 @@ def _collect_links(soup: BeautifulSoup, page_url: str) -> list[str]:
             if urlsplit(absolute).scheme in {"http", "https"}:
                 links.append(absolute)
     return links
+
+
+def _navigation_links(soup: BeautifulSoup, page_url: str) -> list[tuple[str, str]]:
+    output = []
+    for element in soup.find_all("a", href=True, limit=1000):
+        try:
+            link = urljoin(page_url, element["href"].strip())
+            label = clean_ws(element.get_text(" ", strip=True) or element.get("aria-label")) or ""
+            output.append((link, label[:100]))
+        except ValueError:
+            continue
+    return output
 
 
 def _emails_from_mailto(soup: BeautifulSoup, page: dict, page_url: str) -> None:
@@ -776,6 +802,7 @@ def extract_page(body: bytes | str, page_url: str, headers: dict[str, str] | Non
         "live_chat": [],
         "warnings": [],
         "links": _collect_links(soup, page_url),
+        "navigation_links": _navigation_links(soup, page_url),
     }
 
     title = None
@@ -810,12 +837,20 @@ def extract_page(body: bytes | str, page_url: str, headers: dict[str, str] | Non
     nodes = _jsonld_nodes(soup, page)
     _apply_jsonld(page, nodes, page_url)
     _apply_microdata(page, soup, page_url)
+    for tag in soup.find_all(attrs={"itemprop": True}):
+        if "email" in _itemprop_values(tag):
+            value = tag.get("content") or tag.get("href") or tag.get_text(" ", strip=True)
+            for match in _EMAIL_RE.finditer(value.split("?", 1)[0]):
+                _add_email(page, clean_email(match.group()), "microdata", "high", page_url)
     _emails_from_mailto(soup, page, page_url)
     _phones_from_tel(soup, page, page_url)
 
     visible = _visible_soup(soup).get_text(" ", strip=True)
     for match in _EMAIL_RE.finditer(visible):
         _add_email(page, clean_email(match.group(0)), "text", "medium", page_url)
+    for match in _WRITTEN_EMAIL_RE.finditer(visible):
+        host = re.sub(r"\s*(?:\[dot\]|\(dot\))\s*", ".", match.group(2), flags=re.IGNORECASE)
+        _add_email(page, clean_email(match.group(1) + "@" + host), "published text", "medium", page_url)
     for match in _PHONE_RE.finditer(visible):
         _add_phone(page, clean_phone(match.group(0)), "text", "medium", page_url)
     for link in page["links"]:

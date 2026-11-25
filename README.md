@@ -62,7 +62,7 @@ Paste a company URL or domain. The page calls `GET /enrich` and shows what came 
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/yipyipperton/domainkit)
 
-The Render Blueprint uses a free Python web service with the same hosted crawler as the Vercel version, with no preset domain list. During setup pick a new preview password of at least 16 ASCII characters. After deploying, open your service URL and sign in as `domainkit` with that password. The access gate covers the website and lookup API. The free instance can take a little time to wake after inactivity. Sites that block automated access, require login, or expose their content only through JavaScript may still be unavailable or incomplete.
+The Render Blueprint uses a free Python web service with the same hosted crawler as the Vercel version, with no preset domain list. During setup pick a new preview password of at least 16 ASCII characters. After deploying, open your service URL and sign in as `domainkit` with that password. The access gate covers the website and lookup API. The private preview checks up to six HTML pages, prioritizing contact, team, directory, and location links, including related pages linked from those pages. A pasted path is prioritized after the homepage when it stays on the same website; queries and fragments are ignored. Emails include their source pages, inbox category where recognizable, and whether the address uses the website domain. The free instance can take a little time to wake after inactivity. Sites that block automated access, require login, or expose their content only through JavaScript may still be unavailable or incomplete.
 
 ### Deploy the public demo on Vercel
 
@@ -459,7 +459,7 @@ Every request, including robots.txt and every redirect hop, is checked before a 
 
 - HTML is not executed. Copy and widgets that appear only after JavaScript runs are missed.
 - Technology, chat, and booking detection look for known strings in the HTML and a few response headers. They miss new vendors and can false-positive on a coincidental string.
-- Emails come from `mailto:`, JSON-LD, microdata, and visible text. `name [at] domain` obfuscation is not decoded. Placeholder domains such as `example.com` are dropped.
+- Emails come from `mailto:`, JSON-LD, microdata, and visible text, including clearly written `name [at] domain [dot] com` addresses. Placeholder domains such as `example.com` are dropped. DomainKit does not generate addresses or verify mailbox deliverability.
 - Phone numbers come from `tel:`, JSON-LD, microdata, and a conservative text pattern. Many international formats are missed, and a similar digit pattern can still match.
 - Addresses come only from JSON-LD or microdata postal addresses, not from free text.
 - The crawl is at most 6 pages (4 by default) on the final host. There is no public-suffix list and no subdomain crawl.

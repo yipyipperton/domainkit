@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit, urlunsplit
 
 from domainkit.constants import (
     DEFAULT_CONNECT_TIMEOUT,
@@ -143,6 +143,75 @@ def discover_pages(links: list[str], final_url: str, limit: int) -> list[str]:
         add(origin + "/about")
         add(origin + "/about-us")
     return extras[:limit]
+
+
+_CONTACT_PATHS = (
+    (88, re.compile(r"(?:^|[-/_])(?:contact(?:-?us)?|get-in-touch|reach-us)(?:$|[-/_.])", re.I)),
+    (82, re.compile(r"(?:^|[-/_])(?:staff|team|leadership|management|our-people|directory|executives)(?:$|[-/_.])", re.I)),
+    (74, re.compile(r"(?:^|[-/_])(?:locations?|offices?|branches|departments|support|sales|press|media)(?:$|[-/_.])", re.I)),
+    (54, re.compile(r"(?:^|[-/_])(?:about(?:-?us)?|company|who-we-are)(?:$|[-/_.])", re.I)),
+)
+_ROLE_LOCAL = re.compile(r"^(?:info|hello|contact|office|sales|admin|support|service|help|press|media|marketing|careers|jobs|booking|reception|enquiries|inquiries|team|billing|accounts)(?:[.+_-]|$)")
+_SYSTEM_LOCAL = re.compile(r"^(?:no[._-]?reply|do[._-]?not[._-]?reply|postmaster|webmaster|abuse|privacy|security)(?:[.+_-]|$)")
+
+
+def _contact_target(raw: str, home: str) -> str | None:
+    try:
+        parts, root = urlsplit(raw), urlsplit(home)
+        path = unquote(parts.path or "/")
+        if (
+            parts.scheme not in {"http", "https"}
+            or not parts.hostname
+            or _site_key(parts.hostname) != _site_key(root.hostname)
+            or parts.username is not None
+            or not path.startswith("/")
+            or path.startswith("//")
+            or "\\" in path
+            or any(ord(char) < 32 for char in path)
+            or any(segment in {".", ".."} for segment in path.split("/"))
+            or path.rstrip("/") == root.path.rstrip("/")
+        ):
+            return None
+        return urlunsplit((root.scheme, root.netloc, parts.path, "", ""))
+    except ValueError:
+        return None
+
+
+def _contact_targets(links: list[tuple[str, str]], home: str):
+    for link, label in links:
+        target = _contact_target(link, home)
+        if target is None:
+            continue
+        path = unquote(urlsplit(target).path)
+        label_key = re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
+        for weight, pattern in _CONTACT_PATHS:
+            if pattern.search(path) or pattern.search(label_key):
+                yield target, weight - min(path.strip("/").count("/"), 4)
+                break
+
+
+def _contact_emails(merged: list[dict], observations: list[dict], host: str) -> list[dict]:
+    sources: dict[str, list[dict]] = {}
+    for page in observations:
+        for item in page.get("emails", []):
+            seen = sources.setdefault(item["value"], [])
+            if len(seen) < 6 and not any(source["page"] == item["page"] for source in seen):
+                seen.append({"page": item["page"], "source": item["source"]})
+
+    enriched = []
+    for item in merged:
+        local, _, domain = item["value"].partition("@")
+        kind = "system" if _SYSTEM_LOCAL.search(local) else "role" if _ROLE_LOCAL.search(local) else "other"
+        same = domain == host or domain.endswith("." + host)
+        enriched.append({
+            **item,
+            "sources": sources[item["value"]],
+            "kind": kind,
+            "domain_match": same,
+            "verification": "not_checked",
+        })
+    return sorted(enriched, key=lambda item: (item["kind"] == "system", not item["domain_match"],
+                                              item["confidence"] != "high", -len(item["sources"])))
 
 
 def _merge_maps(current: dict | None, new: dict | None) -> dict | None:
@@ -289,6 +358,7 @@ def enrich(
     max_bytes: int = DEFAULT_MAX_BYTES,
     user_agent: str | None = None,
     client: SafeClient | None = None,
+    contact_focus: bool = False,
 ) -> dict:
     """Enrich one public company domain.
 
@@ -337,9 +407,31 @@ def enrich(
     home_extract = _absorb(result, homepage)
     if home_extract is not None:
         observations.append(home_extract)
-        extras = discover_pages(home_extract.get("links") or [], homepage.url, max_pages - 1)
         home_host = _site_key(urlsplit(homepage.url).hostname)
-        for extra in extras:
+        links = home_extract.get("links") or []
+        candidates: dict[str, tuple[int, str]] = {}
+        attempted = {homepage.url.rstrip("/")}
+        if contact_focus:
+            for candidate, weight in _contact_targets(home_extract.get("navigation_links", []), homepage.url):
+                candidates[candidate.rstrip("/")] = (weight, candidate)
+            raw = normalized.raw if "://" in normalized.raw else "https://" + normalized.raw
+            seed = _contact_target(raw, homepage.url)
+            if seed:
+                candidates[seed.rstrip("/")] = (100, seed)
+            home_parts = urlsplit(homepage.url)
+            for fallback in ("/contact", "/contact-us", "/about", "/team", "/locations"):
+                target = _contact_target(urlunsplit((home_parts.scheme, home_parts.netloc, fallback, "", "")), homepage.url)
+                if target:
+                    candidates.setdefault(target.rstrip("/"), (10, target))
+        else:
+            for extra in discover_pages(links, homepage.url, max_pages - 1):
+                candidates[extra.rstrip("/")] = (0, extra)
+        for _ in range(max_pages - 1):
+            if not candidates:
+                break
+            key = max(candidates, key=lambda candidate: candidates[candidate][0])
+            _, extra = candidates.pop(key)
+            attempted.add(key)
             try:
                 fetched = client.get(extra)
             except RobotsDenied as exc:
@@ -368,9 +460,20 @@ def enrich(
             extracted = _absorb(result, fetched)
             if extracted is not None:
                 observations.append(extracted)
+                if contact_focus:
+                    fetched_key = fetched.url.rstrip("/")
+                    attempted.add(fetched_key)
+                    candidates.pop(fetched_key, None)
+                    for candidate, weight in _contact_targets(extracted.get("navigation_links", []), homepage.url):
+                        candidate_key = candidate.rstrip("/")
+                        previous = candidates.get(candidate_key)
+                        if candidate_key not in attempted and (previous is None or weight > previous[0]):
+                            candidates[candidate_key] = (weight, candidate)
 
     if observations:
         merged = merge_observations(observations)
+        if contact_focus:
+            merged["emails"] = _contact_emails(merged["emails"], observations, _site_key(urlsplit(homepage.url).hostname))
         for key, value in merged.items():
             if key == "warnings":
                 result["warnings"].extend(value)

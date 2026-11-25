@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DomainKit</title>
-  <meta name="description" content="One domain in. Structured business data out.">
+  <meta name="description" content="Find email addresses published on a company’s website.">
   <style>
     :root {
       --bg: #f3f0e8;
@@ -271,16 +271,16 @@
   <main class="wrap">
     <header>
       <h1>DomainKit</h1>
-      <p class="subtitle">One domain in. Structured business data out.</p>
+      <p class="subtitle">Find email addresses published on a company’s website.</p>
     </header>
 
     <form id="lookup">
       <label for="domain">Company URL or domain</label>
       <div class="row">
         <input id="domain" name="domain" type="text" inputmode="url" autocomplete="url" spellcheck="false" placeholder="example.com" required>
-        <button id="enrich" type="submit">Enrich</button>
+        <button id="enrich" type="submit">Find emails</button>
       </div>
-      <p class="hint">Find company details, contact info, social links, and website tools published on public pages.</p>
+      <p class="hint">Paste a company website to find public email addresses and the pages they came from.</p>
     </form>
 
     <p id="status" class="status" role="status" hidden></p>
@@ -413,7 +413,7 @@
 
     function setLoading(on) {
       submitButton.disabled = on;
-      submitButton.textContent = on ? "Enriching…" : "Enrich";
+      submitButton.textContent = on ? "Searching…" : "Find emails";
       form.setAttribute("aria-busy", on ? "true" : "false");
       if (on) {
         statusEl.hidden = false;
@@ -540,16 +540,36 @@
       return '<div class="stack">' + rows.join("") + "</div>";
     }
 
+    function emailCard(items) {
+      const emails = Array.isArray(items) ? items : [];
+      const body = listCard("Published emails (" + emails.length + ")", emails, (item) => {
+        const value = textValue(item);
+        if (!value) return "";
+        const rows = Array.isArray(item.sources) ? item.sources : item.page ? [{page: item.page}] : [];
+        const sourceLinks = rows.map((entry, index) => {
+          const href = safeHttpUrl(entry.page);
+          if (!href) return "";
+          const label = index === 0 ? "Source page" : "Source " + (index + 1);
+          return '<a href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>';
+        }).filter(Boolean).join(" · ");
+        const labels = [];
+        if (item.kind === "role") labels.push("Shared inbox");
+        if (item.kind === "system") labels.push("System or policy inbox");
+        if (item.domain_match === true) labels.push("Company domain");
+        if (item.domain_match === false) labels.push("Other domain");
+        return '<a href="mailto:' + escapeHtml(value) + '">' + escapeHtml(value) + '</a>'
+          + metaLine(labels.join(" · "))
+          + (sourceLinks ? '<p class="meta">' + sourceLinks + '</p>' : "");
+      }, true);
+      return '<p class="hint" style="grid-column:1 / -1">Found on public pages. Mailbox deliverability is not verified.</p>' + body;
+    }
+
     function render(data) {
       const cards = [
+        emailCard(data.emails),
         companyCard(data.company_name),
         scalarCard("Title", data.website_title, false),
         scalarCard("Description", data.meta_description, true),
-        listCard("Emails", data.emails, (item) => {
-          const value = textValue(item);
-          if (!value) return "";
-          return '<a href="mailto:' + escapeHtml(value) + '">' + escapeHtml(value) + "</a>" + metaLine(item.source);
-        }, false),
         listCard("Phones", data.phones, (item) => {
           const value = textValue(item);
           if (!value) return "";
