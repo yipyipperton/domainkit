@@ -17,6 +17,7 @@ from domainkit.constants import USER_AGENT
 from domainkit.enricher import enrich
 from domainkit.errors import DomainKitError
 from domainkit.fetch import SafeClient
+from domainkit.public_index import add_public_sources
 
 _PAGE_PATH = Path(__file__).with_name("page.html")
 
@@ -84,7 +85,8 @@ def create_app(*, hosted: bool = False, queue_preview: bool = False) -> FastAPI:
     def do_lookup(domain: str, deep: bool = False) -> dict:
         try:
             lookup = app.state.enrich_deep if deep else app.state.enrich
-            return lookup(domain)
+            result = lookup(domain)
+            return add_public_sources(result) if queue_preview else result
         except DomainKitError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 

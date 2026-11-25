@@ -550,9 +550,9 @@
       return '<div class="stack">' + rows.join("") + "</div>";
     }
 
-    function emailCard(items) {
+    function emailCard(items, heading = "Published emails") {
       const emails = Array.isArray(items) ? items : [];
-      const body = listCard("Published emails (" + emails.length + ")", emails, (item) => {
+      const body = listCard(heading + " (" + emails.length + ")", emails, (item) => {
         const value = textValue(item);
         if (!value) return "";
         const rows = Array.isArray(item.sources) ? item.sources : item.page ? [{page: item.page}] : [];
@@ -574,6 +574,21 @@
       return '<p class="hint" style="grid-column:1 / -1">Found on public pages. Mailbox deliverability is not verified.</p>' + body;
     }
 
+    function indexedResults(data) {
+      const indexed = data && data.public_index;
+      if (!indexed) return "";
+      const items = indexed.emails || [];
+      if (items.length) {
+        const label = indexed.status === "search_results" ? "Found in Brave Search excerpts" : "Saved from public sources";
+        return emailCard(items, label);
+      }
+      const domain = data.domain || "";
+      if (!/^[a-z0-9.-]+$/.test(domain)) return "";
+      const query = "https://www.google.com/search?q=" + encodeURIComponent('"' + domain + '" email contact');
+      return card("Public web search", '<p><a href="' + escapeHtml(query) +
+        '" rel="noopener noreferrer" target="_blank">Search indexed pages for this domain</a></p>', true);
+    }
+
     function render(data) {
       const crawled = Array.isArray(data.pages) ? data.pages.filter(page => page && page.ok).length : 0;
       const crawlNote = data.crawl && data.crawl.mode === "deep"
@@ -583,6 +598,7 @@
       const cards = [
         crawlNote,
         emailCard(data.emails),
+        indexedResults(data),
         companyCard(data.company_name),
         scalarCard("Title", data.website_title, false),
         scalarCard("Description", data.meta_description, true),
@@ -637,7 +653,7 @@
       if (failed) {
         const detail = detailText(payload);
         showError(friendlyMessage(status, payload), detail);
-        cardsEl.innerHTML = "";
+        cardsEl.innerHTML = indexedResults(payload);
         summaryEl.textContent = (payload && (payload.domain || payload.input)) || input.value.trim() || "Result";
         const sourceUrl = safeHttpUrl(payload && payload.final_url);
         finalUrlEl.innerHTML = sourceUrl ? linkOrText(sourceUrl) : "";
