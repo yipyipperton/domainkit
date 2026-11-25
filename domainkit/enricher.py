@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from urllib.parse import unquote, urlsplit, urlunsplit
+from xml.etree import ElementTree
 
 from domainkit.constants import (
     DEFAULT_CONNECT_TIMEOUT,
@@ -145,6 +146,10 @@ def discover_pages(links: list[str], final_url: str, limit: int) -> list[str]:
     return extras[:limit]
 
 
+_DEEP_PAGES_LIMIT = 20
+_SITEMAP_DOC_LIMIT = 3
+_SITEMAP_ENTRY_LIMIT = 2000
+
 _CONTACT_PATHS = (
     (88, re.compile(r"(?:^|[-/_])(?:contact(?:-?us)?|get-in-touch|reach-us)(?:$|[-/_.])", re.I)),
     (82, re.compile(r"(?:^|[-/_])(?:staff|team|leadership|management|our-people|directory|executives)(?:$|[-/_.])", re.I)),
@@ -188,6 +193,58 @@ def _contact_targets(links: list[tuple[str, str]], home: str):
             if pattern.search(path) or pattern.search(label_key):
                 yield target, weight - min(path.strip("/").count("/"), 4)
                 break
+
+
+def _sitemap_contacts(home: str, client: SafeClient) -> tuple[list[tuple[str, int]], int]:
+    """Discover relevant, public pages without following cross-host sitemaps."""
+    root = urlsplit(home)
+    policy = client.robot_policy(home)
+    advertised = policy.parser.site_maps() if policy else None
+    fallback = urlunsplit((root.scheme, root.netloc, "/sitemap.xml", "", ""))
+    pending = []
+    for value in list(advertised or [])[:10] + [fallback]:
+        target = _contact_target(value, home)
+        if target and target not in pending:
+            pending.append(target)
+
+    seen: set[str] = set()
+    hits: list[tuple[str, int]] = []
+    read = 0
+    while pending and len(seen) < _SITEMAP_DOC_LIMIT:
+        url = pending.pop(0)
+        if url in seen:
+            continue
+        seen.add(url)
+        try:
+            fetched = client.get(url, stay_on_host=root.hostname)
+            if fetched.status in {401, 403, 429} or fetched.headers.get("cf-mitigated", "").lower() == "challenge":
+                break
+            if fetched.status != 200:
+                continue
+            xml = fetched.body.decode("utf-8-sig")
+            if re.search(r"<!\s*(?:doctype|entity)", xml, re.I):
+                continue
+            tree = ElementTree.fromstring(xml)
+        except (DomainKitError, UnicodeError, ElementTree.ParseError):
+            continue
+        tag = tree.tag.rsplit("}", 1)[-1]
+        if tag not in {"sitemapindex", "urlset"}:
+            continue
+        read += 1
+        positions = [(el.text or "").strip() for el in tree.iter()
+                     if el.tag.rsplit("}", 1)[-1] == "loc"]
+        if tag == "urlset":
+            hits.extend(_contact_targets([(value, "") for value in positions[:_SITEMAP_ENTRY_LIMIT]], home))
+            continue
+        children = []
+        for item in positions[:_SITEMAP_ENTRY_LIMIT]:
+            target = _contact_target(item, home)
+            if target and target not in seen and target not in children:
+                children.append(target)
+        # WordPress and other CMSes usually put contact pages in page sitemaps.
+        children.sort(key=lambda item: not bool(re.search(r"/[^/]*(?:page|location|team|contact)", urlsplit(item).path, re.I)))
+        pending = children[:_SITEMAP_DOC_LIMIT] + pending
+    return hits, read
 
 
 def _contact_emails(merged: list[dict], observations: list[dict], host: str) -> list[dict]:
@@ -369,6 +426,7 @@ def enrich(
     user_agent: str | None = None,
     client: SafeClient | None = None,
     contact_focus: bool = False,
+    deep: bool = False,
 ) -> dict:
     """Enrich one public company domain.
 
@@ -379,8 +437,10 @@ def enrich(
     Fields that were not published on the pages stay ``null``.
     """
 
-    if isinstance(max_pages, bool) or not isinstance(max_pages, int) or not 1 <= max_pages <= MAX_PAGES_LIMIT:
-        raise DomainKitError(f"max_pages must be an integer from 1 to {MAX_PAGES_LIMIT}")
+    page_ceiling = _DEEP_PAGES_LIMIT if deep else MAX_PAGES_LIMIT
+    if isinstance(max_pages, bool) or not isinstance(max_pages, int) or not 1 <= max_pages <= page_ceiling:
+        raise DomainKitError(f"max_pages must be an integer from 1 to {page_ceiling}")
+    contact_focus = contact_focus or deep
 
     normalized = normalize_domain(domain)
     if client is None:
@@ -394,6 +454,8 @@ def enrich(
         )
     warning_start = len(client.warnings)
     result = _empty(normalized.raw, normalized.domain)
+    if deep:
+        result["crawl"] = {"mode": "deep", "page_limit": max_pages, "sitemaps_read": 0}
 
     try:
         homepage = client.get(normalized.fetch_url)
@@ -426,6 +488,11 @@ def enrich(
         if contact_focus:
             for candidate, weight in _contact_targets(home_extract.get("navigation_links", []), homepage.url):
                 candidates[candidate.rstrip("/")] = (weight, candidate)
+            if deep:
+                sitemap_links, sitemap_count = _sitemap_contacts(homepage.url, client)
+                result["crawl"]["sitemaps_read"] = sitemap_count
+                for candidate, weight in sitemap_links:
+                    candidates.setdefault(candidate.rstrip("/"), (weight - 8, candidate))
             raw = normalized.raw if "://" in normalized.raw else "https://" + normalized.raw
             seed = _contact_target(raw, homepage.url)
             if seed:
@@ -445,7 +512,7 @@ def enrich(
             _, extra = candidates.pop(key)
             attempted.add(key)
             try:
-                fetched = client.get(extra)
+                fetched = client.get(extra, stay_on_host=urlsplit(homepage.url).hostname) if deep else client.get(extra)
             except RobotsDenied as exc:
                 result["pages"].append(_page_record(exc.url, status=None, ok=False, error=str(exc)))
                 result["warnings"].append(str(exc))
@@ -457,6 +524,8 @@ def enrich(
             except FetchError as exc:
                 result["pages"].append(_page_record(extra, status=None, ok=False, error=str(exc)))
                 result["warnings"].append(str(exc))
+                if deep and "reached its" in str(exc):
+                    break
                 continue
             if _site_key(urlsplit(fetched.url).hostname) != home_host:
                 result["pages"].append(
@@ -470,6 +539,9 @@ def enrich(
                 result["warnings"].append(f"{extra} redirected off the company site")
                 continue
             extracted = _absorb(result, fetched)
+            if deep and (fetched.status == 429 or fetched.headers.get("cf-mitigated", "").lower() == "challenge"):
+                result["warnings"].append("Deep search stopped when the website asked it to slow down or required a browser check.")
+                break
             if extracted is not None:
                 observations.append(extracted)
                 if contact_focus:

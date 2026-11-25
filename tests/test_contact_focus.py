@@ -60,3 +60,41 @@ def test_explicit_page_checked_without_user_query_or_forbidden_page():
     assert transport.calls[-1] == seed
     assert result["emails"][0]["value"] == "alex@bluepeak.example"
     assert not any("private-team" in url or "?" in url for url in transport.calls)
+
+
+def test_deep_search_reads_index_and_reaches_more_than_six_relevant_pages():
+    from pathlib import PurePosixPath
+
+    paths = [f"/locations/branch-{i}" for i in range(12)]
+    routes = {
+        HOST + "/": html_response(b"<html><title>Blue Peak</title></html>"),
+        HOST + "/robots.txt": response(200, {}, f"User-agent: *\nDisallow: /locations/branch-10\nSitemap: {HOST}/sitemap_index.xml".encode()),
+        HOST + "/sitemap_index.xml": response(200, {}, (
+            f"<sitemapindex><sitemap><loc>{HOST}/page-sitemap.xml</loc></sitemap>"
+            "<sitemap><loc>https://other.example/sitemap.xml</loc></sitemap></sitemapindex>"
+        ).encode()),
+        HOST + "/page-sitemap.xml": response(200, {}, (
+            "<urlset>" + "".join(f"<url><loc>{HOST}{path}</loc></url>" for path in paths)
+            + "<url><loc>https://other.example/contact</loc></url></urlset>"
+        ).encode()),
+    }
+    for path in paths:
+        mailbox = PurePosixPath(path).name
+        routes[HOST + path] = html_response(f"<html>{mailbox}@bluepeak.example</html>".encode())
+    transport = FakeTransport(routes)
+    client = SafeClient(transport=transport, resolver=lambda *_: [PUBLIC_IP], per_host_delay=0)
+    result = enrich(HOST, max_pages=20, client=client, deep=True)
+    assert result["crawl"] == {"mode": "deep", "page_limit": 20, "sitemaps_read": 2}
+    assert len(result["emails"]) == 11
+    assert not any("other.example" in u or "branch-10" in u for u in transport.calls)
+
+
+def test_deep_search_does_not_follow_sitemap_redirect_outside_website():
+    transport = FakeTransport({
+        HOST + "/": html_response(b"<html><title>Blue Peak</title></html>"),
+        HOST + "/sitemap.xml": response(302, {"Location": "https://other.example/map.xml"}),
+    })
+    client = SafeClient(transport=transport, resolver=lambda *_: [PUBLIC_IP], per_host_delay=0)
+    result = enrich(HOST, max_pages=20, client=client, deep=True)
+    assert result["crawl"]["sitemaps_read"] == 0
+    assert not any("other.example" in u for u in transport.calls)

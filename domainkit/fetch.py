@@ -10,7 +10,7 @@ import socket
 import time
 from dataclasses import dataclass, field
 from typing import Callable
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import requests
@@ -257,6 +257,7 @@ class SafeClient:
     clock: Callable[[], float] = time.monotonic
     standard_ports_only: bool = False
     max_requests: int | None = None
+    deadline: float | None = None
     warnings: list[str] = field(default_factory=list)
     _request_count: int = field(default=0, init=False)
     _robots: dict[str, RobotsPolicy] = field(default_factory=dict)
@@ -272,8 +273,8 @@ class SafeClient:
     def _resolve(self, url: str) -> ResolvedURL:
         return validate_destination(url, self.resolver, standard_ports_only=self.standard_ports_only)
 
-    def get(self, url: str) -> FetchResult:
-        return self._fetch(url, check_robots=True)
+    def get(self, url: str, *, stay_on_host: str | None = None) -> FetchResult:
+        return self._fetch(url, check_robots=True, stay_on_host=stay_on_host)
 
     def robot_policy(self, url: str) -> RobotsPolicy | None:
         try:
@@ -289,11 +290,19 @@ class SafeClient:
             "Accept-Language": "en",
         }
 
-    def _fetch(self, url: str, *, check_robots: bool) -> FetchResult:
+    def _fetch(self, url: str, *, check_robots: bool, stay_on_host: str | None = None) -> FetchResult:
         current = url
         seen: set[str] = set()
         redirects = 0
         while True:
+            if self.deadline is not None and self.clock() >= self.deadline:
+                raise FetchError("deep search reached its time budget")
+            if stay_on_host:
+                try:
+                    if urlsplit(current).hostname != stay_on_host:
+                        raise FetchError("redirected outside the original website")
+                except ValueError as exc:
+                    raise FetchError("invalid redirect URL") from exc
             if self.max_requests is not None and self._request_count >= self.max_requests:
                 raise FetchError("hosted lookup reached its request limit")
             resolved = self._resolve(current)
@@ -302,20 +311,23 @@ class SafeClient:
                 raise FetchError(f"redirect loop at {current}")
             seen.add(current)
             if check_robots:
-                policy = self._ensure_robots(resolved)
+                policy = self._ensure_robots(resolved, stay_on_host=stay_on_host)
                 if not policy.parser.can_fetch(self.user_agent, current):
                     raise RobotsDenied(current, self._deny_reason(resolved, policy))
             if self.max_requests is not None and self._request_count >= self.max_requests:
                 raise FetchError("hosted lookup reached its request limit")
             self._request_count += 1
             self._pace(resolved)
+            remaining = self.deadline - self.clock() if self.deadline is not None else None
+            if remaining is not None and remaining <= 0:
+                raise FetchError("deep search reached its time budget")
             assert self.transport is not None
             response = self.transport.request(
                 "GET",
                 current,
                 headers=self._headers(),
-                timeout=self.timeout,
-                connect_timeout=self.connect_timeout,
+                timeout=min(self.timeout, remaining) if remaining is not None else self.timeout,
+                connect_timeout=min(self.connect_timeout, remaining) if remaining is not None else self.connect_timeout,
                 max_bytes=self.max_bytes,
                 pinned_ip=resolved.pinned_ip,
             )
@@ -348,13 +360,13 @@ class SafeClient:
             return f"robots.txt for {resolved.origin} denies access ({policy.detail})"
         return f"robots.txt disallows {resolved.url}"
 
-    def _ensure_robots(self, resolved: ResolvedURL) -> RobotsPolicy:
+    def _ensure_robots(self, resolved: ResolvedURL, *, stay_on_host: str | None = None) -> RobotsPolicy:
         cached = self._robots.get(resolved.origin)
         if cached is not None:
             return cached
         robots_url = resolved.origin + "/robots.txt"
         try:
-            result = self._fetch(robots_url, check_robots=False)
+            result = self._fetch(robots_url, check_robots=False, stay_on_host=stay_on_host)
         except UnsafeDestination:
             raise
         except FetchError as exc:

@@ -44,7 +44,7 @@ def test_home_page_explains_blocked_robots_and_timeout_failures():
     assert "That address is private or blocked. DomainKit only fetches public websites." in html
     assert "robots.txt does not allow DomainKit to read that site." in html
     assert "The site took too long to respond." in html
-    assert "/enrich?domain=" in html
+    assert "/enrich?" in html and "URLSearchParams({domain})" in html
 
 
 def test_home_page_does_not_replace_the_enrich_endpoint():

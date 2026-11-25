@@ -281,6 +281,7 @@
         <button id="enrich" type="submit">Find emails</button>
       </div>
       <p class="hint">Paste a company website to find public email addresses and the pages they came from.</p>
+      <!-- deep-search-control -->
     </form>
 
     <p id="status" class="status" role="status" hidden></p>
@@ -306,6 +307,7 @@
     const form = document.getElementById("lookup");
     const input = document.getElementById("domain");
     const submitButton = document.getElementById("enrich");
+    const deepSearch = document.getElementById("deep-search");
     const statusEl = document.getElementById("status");
     const errorEl = document.getElementById("error");
     const resultsEl = document.getElementById("results");
@@ -573,7 +575,13 @@
     }
 
     function render(data) {
+      const crawled = Array.isArray(data.pages) ? data.pages.filter(page => page && page.ok).length : 0;
+      const crawlNote = data.crawl && data.crawl.mode === "deep"
+        ? '<p class="hint" style="grid-column:1 / -1">Deep search read ' + escapeHtml(crawled)
+          + ' pages and ' + escapeHtml(data.crawl.sitemaps_read) + ' sitemap files.</p>'
+        : "";
       const cards = [
+        crawlNote,
         emailCard(data.emails),
         companyCard(data.company_name),
         scalarCard("Title", data.website_title, false),
@@ -651,7 +659,9 @@
       cardsEl.innerHTML = "";
       setLoading(true);
       try {
-        const response = await fetch("/enrich?domain=" + encodeURIComponent(domain), {
+        const search = new URLSearchParams({domain});
+        if (deepSearch && deepSearch.checked) search.set("deep", "true");
+        const response = await fetch("/enrich?" + search, {
           headers: { "Accept": "application/json" }
         });
         let payload = null;

@@ -21,17 +21,19 @@ from domainkit.fetch import SafeClient
 _PAGE_PATH = Path(__file__).with_name("page.html")
 
 
-def _hosted_enrich(domain: str, *, contact_focus: bool = False) -> dict:
+def _hosted_enrich(domain: str, *, contact_focus: bool = False, deep: bool = False) -> dict:
     return enrich(
         domain,
-        max_pages=6 if contact_focus else 3,
+        max_pages=20 if deep else 6 if contact_focus else 3,
         contact_focus=contact_focus,
+        deep=deep,
         client=SafeClient(
             standard_ports_only=True,
             timeout=4,
             connect_timeout=3,
             max_redirects=4,
-            max_requests=14 if contact_focus else 10,
+            max_requests=32 if deep else 14 if contact_focus else 10,
+            deadline=monotonic() + 45 if deep else None,
             max_bytes=1_000_000,
         ),
     )
@@ -39,6 +41,12 @@ def _hosted_enrich(domain: str, *, contact_focus: bool = False) -> dict:
 
 def create_app(*, hosted: bool = False, queue_preview: bool = False) -> FastAPI:
     page_html = _PAGE_PATH.read_text(encoding="utf-8")
+    if queue_preview:
+        page_html = page_html.replace(
+            "<!-- deep-search-control -->",
+            '<p class="hint"><label><input id="deep-search" type="checkbox"> '
+            'Deep search (up to 20 pages, including sitemap discovery)</label></p>',
+        )
     app = FastAPI(
         title="DomainKit",
         version=__version__,
@@ -48,6 +56,7 @@ def create_app(*, hosted: bool = False, queue_preview: bool = False) -> FastAPI:
         ),
     )
     app.state.enrich = (lambda domain: _hosted_enrich(domain, contact_focus=queue_preview)) if hosted else enrich
+    app.state.enrich_deep = lambda domain: _hosted_enrich(domain, contact_focus=True, deep=True)
     slots = BoundedSemaphore(3)
     preview_slots = asyncio.Semaphore(3)
     preview_pending = 0
@@ -72,9 +81,10 @@ def create_app(*, hosted: bool = False, queue_preview: bool = False) -> FastAPI:
     def health() -> dict:
         return {"status": "ok"}
 
-    def do_lookup(domain: str) -> dict:
+    def do_lookup(domain: str, deep: bool = False) -> dict:
         try:
-            return app.state.enrich(domain)
+            lookup = app.state.enrich_deep if deep else app.state.enrich
+            return lookup(domain)
         except DomainKitError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -82,8 +92,11 @@ def create_app(*, hosted: bool = False, queue_preview: bool = False) -> FastAPI:
     async def enrich_domain(
         request: Request,
         domain: str = Query(..., min_length=1, max_length=2048, description="Public company domain"),
+        deep: bool = Query(False, description="Check additional contact and sitemap pages in the private preview"),
     ) -> dict:
         nonlocal preview_pending
+        if deep and not queue_preview:
+            raise HTTPException(status_code=400, detail="Deep search is available in the private preview.")
         if not hosted:
             return await run_in_threadpool(do_lookup, domain)
         if request.headers.get("user-agent", "").startswith(USER_AGENT.split("/")[0] + "/"):
@@ -108,7 +121,7 @@ def create_app(*, hosted: bool = False, queue_preview: bool = False) -> FastAPI:
                 except asyncio.TimeoutError as exc:
                     raise queue_full() from exc
                 try:
-                    return await run_in_threadpool(do_lookup, domain)
+                    return await run_in_threadpool(do_lookup, domain, deep)
                 finally:
                     preview_slots.release()
             finally:

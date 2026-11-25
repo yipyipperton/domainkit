@@ -97,3 +97,15 @@ def test_private_preview_queues_a_fourth_lookup_without_increasing_crawl_concurr
 
     asyncio.run(run())
     assert entered == 4 and maximum == 3
+
+
+def test_preview_exposes_deep_search_only_to_authenticated_client():
+    app = create_preview("not-a-real-password")
+    app.state.enrich_deep = lambda domain: {"domain": domain, "crawl": {"mode": "deep"}}
+    with TestClient(app) as client:
+        auth = ("domainkit", "not-a-real-password")
+        assert 'id="deep-search"' in client.get("/", auth=auth).text
+        assert client.get("/enrich?domain=example.com&deep=true").status_code == 401
+        result = client.get("/enrich?domain=example.com&deep=true", auth=auth)
+        assert result.status_code == 200
+        assert result.json()["crawl"]["mode"] == "deep"
